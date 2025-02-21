@@ -19,6 +19,6 @@ h1 {
 
 video,
 canvas {
-  /* transform: rotateY(180deg); */
+  transform: rotateY(180deg);
   display: block;
 }

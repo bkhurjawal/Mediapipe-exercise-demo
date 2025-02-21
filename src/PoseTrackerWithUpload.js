@@ -21,10 +21,13 @@ import {
   calculateNeckRotation,
   calculatePronation,
   calculateRadialDeviation,
+  calculateRadialUlnar,
   calculateSupination,
   calculateUlnarDeviation,
   calculateWristExtension,
   calculateWristFlexion,
+  calculateWristFlexionExtension,
+  calculateWristPronationSupination,
   skeletonColors,
 } from './helpers';
 
@@ -43,6 +46,10 @@ const PoseTrackerWithUpload = () => {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState('top');
   const [lumbarRotation, setLumbarRotation] = useState('');
+  const [pronation, setPronation] = useState('');
+  const [supinion, setSupinion] = useState('');
+  const [ulnar, setUlnar] = useState('');
+  const [radial, setRadial] = useState('');
   const [lateral, setLateral] = useState('');
   const [handAngles, setHandAngles] = useState('');
   const [hasEnteredFrame, setHasEnteredFrame] = useState(false);
@@ -480,10 +487,6 @@ const PoseTrackerWithUpload = () => {
         // const poseConnectionsArray = Object.values(
         //   PoseLandmarker.POSE_CONNECTIONS
         // );
-        console.log(
-          'PoseLandmarker.POSE_CONNECTIONS',
-          PoseLandmarker.POSE_CONNECTIONS
-        );
 
         const poseConnectionsArray = [];
         for (const key in PoseLandmarker.POSE_CONNECTIONS) {
@@ -514,23 +517,23 @@ const PoseTrackerWithUpload = () => {
         //   }
         // );
 
-        drawingUtils.drawConnectors(
-          poseLandmarks,
-          PoseLandmarker.POSE_CONNECTIONS,
-          {
-            color: skeletonColors.left_shoulder_hand,
-            lineWidth: lineWidth,
-          }
-        );
+        // drawingUtils.drawConnectors(
+        //   poseLandmarks,
+        //   PoseLandmarker.POSE_CONNECTIONS,
+        //   {
+        //     color: skeletonColors.left_shoulder_hand,
+        //     lineWidth: lineWidth,
+        //   }
+        // );
 
-        poseLandmarks.forEach((landmark, index) => {
-          const landmarkName = Object.keys(skeletonColors)[index];
-          const color = skeletonColors[landmarkName] || 'rgb(255, 255, 255)';
-          drawingUtils.drawLandmarks([landmark], {
-            radius: jointRadius,
-            color: color,
-          });
-        });
+        // poseLandmarks.forEach((landmark, index) => {
+        //   const landmarkName = Object.keys(skeletonColors)[index];
+        //   const color = skeletonColors[landmarkName] || 'rgb(255, 255, 255)';
+        //   drawingUtils.drawLandmarks([landmark], {
+        //     radius: jointRadius,
+        //     color: color,
+        //   });
+        // });
 
         // Draw filtered pose landmarks
         // filteredPoseLandmarks.forEach((landmark, index) => {
@@ -551,8 +554,9 @@ const PoseTrackerWithUpload = () => {
           const distanceToRight = Math.abs(handWrist.x - rightWristPose.x);
           const distanceToLeft = Math.abs(handWrist.x - leftWristPose.x);
           let poseElbow, poseWrist;
-          // poseElbow = poseLandmarks[13];
-          // poseWrist = poseLandmarks[15];
+          poseElbow = poseLandmarks[13];
+          poseWrist = poseLandmarks[15];
+
           if (distanceToRight < distanceToLeft) {
             // Right hand.
             poseElbow = poseLandmarks[14];
@@ -562,15 +566,37 @@ const PoseTrackerWithUpload = () => {
             poseElbow = poseLandmarks[13];
             poseWrist = poseLandmarks[15];
           }
+
+          const handIndexTip = handLandmarks[8];
+          const handPinkyTip = handLandmarks[20];
           const angle = calculateCombinedWristAngle(
             poseElbow,
             poseWrist,
-            handLandmarks
+            handIndexTip
           );
 
           const flex = angle > 0 ? angle : 0;
           const ext = angle < 0 ? Math.abs(angle) : 0;
           combinedAngles.push({ flex, ext, handIndex: i });
+          const wrist = poseLandmarks[16]; // adjust the index as needed
+          const middleFingertip = handLandmarks[12]; // example index for middle fingertip
+          const thumbTip = handLandmarks[4]; // example index for thumb tip
+          const wristProSup = calculateWristPronationSupination(
+            wrist,
+            thumbTip
+          );
+          const wristRadialUlnar = calculateRadialUlnar(wrist, middleFingertip);
+          const ulnarDeviation =
+            wristRadialUlnar < 0 ? Math.abs(wristRadialUlnar) : 0;
+          const radialDeviation = wristRadialUlnar > 0 ? wristRadialUlnar : 0;
+          const supination = wristProSup < 0 ? Math.abs(wristProSup) : 0;
+          const pronation = wristProSup > 0 ? wristProSup : 0;
+          setPronation(`Wrist Pronation: ${pronation}°`);
+          setSupinion(`Wrist Supination: ${supination}°`);
+          setUlnar(`Wrist Ulnar: ${ulnarDeviation}°`);
+          setRadial(`Wrist Radial: ${radialDeviation}°`);
+
+          //  setWristUlnar(`Wrist Ulnar/Radial: ${wristRadialUlnar}°`);
 
           drawingUtils.drawConnectors(
             handLandmarks,
@@ -720,7 +746,11 @@ const PoseTrackerWithUpload = () => {
         <div className="w-full flex  items-center">
           <div className="p-5">
             {/* <h1 style={{ color: 'black' }}>{lumbarRotation}</h1> */}
-            <h1 style={{ color: 'black' }}>{handAngles}</h1>
+            {/* <h1 style={{ color: 'black' }}>{handAngles}</h1> */}
+            {/* <h1 style={{ color: 'black' }}>{pronation}</h1>
+            <h1 style={{ color: 'black' }}>{supinion}</h1> */}
+            <h1 style={{ color: 'black' }}>{radial}</h1>
+            <h1 style={{ color: 'black' }}>{ulnar}</h1>
           </div>
           {/* <h2 className="text-xl font-semibold mb-3">Upload an Image</h2> */}
           {/* <div className="relative w-full max-w-lg  bg-gray-900 flex justify-center items-center rounded-xl overflow-hidden">

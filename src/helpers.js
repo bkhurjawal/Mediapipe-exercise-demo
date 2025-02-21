@@ -329,11 +329,10 @@ function signedAngle(v1, v2) {
 export function calculateCombinedWristAngle(
   poseElbow,
   poseWrist,
-  handLandmarks
+  handIndexTip
 ) {
   // Choose a hand landmark as the reference for hand orientation.
   // Here we use the index finger tip (landmark index 8 in Mediapipe Hand Landmarker).
-  const handIndexTip = handLandmarks[8];
 
   // Define a horizontal reference vector (pointing right)
   const ref = { x: 1, y: 0 };
@@ -381,3 +380,75 @@ export function calculateCombinedWristAngle(
 //   );
 //   return angle < 0 ? Math.abs(angle) : 0;
 // }
+
+/**
+ * Calculates the wrist flexion/extension angle using the middle fingertip.
+ * The reference is a horizontal vector:
+ *   - 0° means the middle fingertip is horizontally aligned with the wrist.
+ *   - A positive angle (up to +20°) indicates radial deviation (middle fingertip above horizontal).
+ *   - A negative angle (down to -30°) indicates ulnar deviation (middle fingertip below horizontal).
+ *
+ * @param {Object} poseWrist - The wrist landmark from the pose detector.
+ * @param {Object} handMiddleFingerTip - The middle fingertip landmark from the hand detector.
+ * @returns {number} The clamped wrist flexion/extension angle.
+ */
+export function calculateRadialUlnar(poseWrist, handMiddleFingerTip) {
+  if (!poseWrist || !handMiddleFingerTip) return null;
+
+  // Define a horizontal reference vector (pointing to the right).
+  const ref = { x: 1, y: 0 };
+
+  // Compute the vector from the wrist to the middle fingertip.
+  const v = {
+    x: handMiddleFingerTip.x - poseWrist.x,
+    y: handMiddleFingerTip.y - poseWrist.y,
+  };
+
+  // Calculate the signed angle between the horizontal reference and the vector.
+  let angle = signedAngle(ref, v);
+
+  // Clamp the angle:
+  // - Upward (radial) deviation: maximum +20°
+  // - Downward (ulnar) deviation: maximum -30°
+  // if (angle > 20) angle = 20;
+  // else if (angle < -30) angle = -30;
+
+  return angle.toFixed(2);
+}
+
+/**
+ * Calculates the wrist pronation/supination angle using the thumb tip.
+ * The reference is a vertical vector (pointing upward).
+ * When the thumb is exactly vertical (up), the angle is 0.
+ * A positive angle indicates one rotational direction (e.g., pronation),
+ * and a negative angle indicates the opposite (e.g., supination).
+ *
+ * @param {Object} poseWrist - The wrist landmark from the pose detector.
+ * @param {Object} handThumbTip - The thumb tip landmark from the hand detector.
+ * @returns {number} The wrist pronation/supination angle.
+ */
+export function calculateWristPronationSupination(poseWrist, handThumbTip) {
+  if (!poseWrist || !handThumbTip) return null;
+
+  // Define a vertical reference vector (pointing upward).
+  // Note: In image coordinates, upward means a decreasing y value.
+  const ref = { x: 0, y: -1 };
+
+  // Compute the vector from the wrist to the thumb tip.
+  const v = {
+    x: handThumbTip.x - poseWrist.x,
+    y: handThumbTip.y - poseWrist.y,
+    // y: 1 - handThumbTip.y - poseWrist.y, // invert y for hand landmark
+  };
+
+  // Calculate the signed angle between the vertical reference and the vector.
+  const angle = signedAngle(ref, v);
+
+  console.log('angle', angle);
+  console.log('v', v);
+  console.log('handThumbTip', handThumbTip);
+  const angleFix = angle - 20.0;
+
+  // (Optional) You may clamp or adjust the angle range if needed.
+  return angleFix.toFixed(2);
+}
