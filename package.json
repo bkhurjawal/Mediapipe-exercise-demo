@@ -8,6 +8,7 @@
     "@tensorflow-models/posenet": "^2.2.2",
     "@tensorflow/tfjs": "^4.22.0",
     "cra-template": "1.2.0",
+    "html2canvas": "^1.4.1",
     "primeflex": "^3.3.1",
     "primereact": "^10.9.2",
     "react": "^19.0.0",

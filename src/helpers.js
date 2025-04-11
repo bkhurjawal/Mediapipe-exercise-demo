@@ -1,3 +1,90 @@
+export const neckLeftRotation = (positions) => {
+  const [nose, leftShoulder, rightShoulder] = positions;
+
+  // Midpoint between shoulders
+  const midX = (leftShoulder.x + rightShoulder.x) / 2;
+  const midY = (leftShoulder.y + rightShoulder.y) / 2;
+
+  // Vector from shoulder-midpoint to nose
+  const dx = nose.x - midX;
+  const dy = nose.y - midY;
+
+  // Angle in degrees from the +X axis
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  // Shift so that 0° = upright
+  let angleFromVertical = angle + 90;
+
+  // Ensure positive rotation
+  const neckRotation = angleFromVertical.toFixed(2);
+  const rightRotation = neckRotation < 0 ? Math.abs(neckRotation) : 0;
+  const leftRotation = neckRotation > 0 ? neckRotation : 0;
+  return neckRotation * 8;
+};
+
+export const calculateLumbarRotation = (positions) => {
+  // Assuming landmarks are provided by MediaPipe Pose in normalized coordinates
+  const [leftHip, rightHip, leftShoulder, rightShoulder] = positions;
+  // 1. Hip Center
+  const hipCenterX = (leftHip.x + rightHip.x) / 2;
+  const hipCenterY = (leftHip.y + rightHip.y) / 2;
+  // 2. Shoulder Line
+  const shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2;
+  const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2;
+  // 3. Torso Vector
+  const torsoVectorX = shoulderMidX - hipCenterX;
+  const torsoVectorY = shoulderMidY - hipCenterY;
+  // 4. Calculate Rotation (simplified - 2D angle)
+  const rotation = Math.atan2(torsoVectorY, torsoVectorX); // Radians
+  // Convert to degrees if needed
+  const rotationDegrees = rotation * (180 / Math.PI);
+  return rotationDegrees.toFixed(2);
+};
+
+export const calculateLumbarRotationDeepSeek = (positions) => {
+  // Assuming landmarks are provided by MediaPipe Pose in normalized coordinates
+
+  const [leftHip, rightHip, leftShoulder, rightShoulder] = positions;
+
+  // Compute midpoints for hips and shoulders
+  const hipCenter = {
+    x: (leftHip.x + rightHip.x) / 2,
+    y: (leftHip.y + rightHip.y) / 2,
+  };
+
+  const shoulderCenter = {
+    x: (leftShoulder.x + rightShoulder.x) / 2,
+    y: (leftShoulder.y + rightShoulder.y) / 2,
+  };
+
+  // Compute torso vector (from hip center to shoulder center)
+  const v = {
+    x: shoulderCenter.x - hipCenter.x,
+    y: shoulderCenter.y - hipCenter.y,
+  };
+
+  // Define vertical reference vector (pointing straight up)
+  const ref = { x: 0, y: -1 };
+
+  // Calculate dot product and magnitudes
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x ** 2 + ref.y ** 2);
+  const magV = Math.sqrt(v.x ** 2 + v.y ** 2);
+
+  if (magV === 0) return '0.00'; // Avoid division by zero
+
+  // Calculate angle using acos (in degrees)
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Determine sign using cross product
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  const angleFix = (angle * 10).toFixed(2);
+
+  return angleFix;
+  return angleFix < 0 ? Math.abs(angleFix) : 0;
+};
+
 export const calculateUlnarDeviation = (p0, p1, p2) => {
   if (!p0 || !p1 || !p2) return null;
 
@@ -10,6 +97,54 @@ export const calculateUlnarDeviation = (p0, p1, p2) => {
   let deviation = Math.max(0, 90 - angle);
 
   return Math.round(deviation * 100) / 100;
+};
+
+export function calculateLumbarRotationTest(landmarks) {
+  // Assuming landmarks are provided by MediaPipe Pose in normalized coordinates
+
+  // 1. Hip Center
+  const leftHip = landmarks[23]; // Landmark IDs may vary, check MediaPipe docs
+  const rightHip = landmarks[24];
+  const hipCenterX = (leftHip.x + rightHip.x) / 2;
+  const hipCenterY = (leftHip.y + rightHip.y) / 2;
+
+  // 2. Shoulder Line
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2;
+  const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2;
+
+  // 3. Torso Vector
+  const torsoVectorX = shoulderMidX - hipCenterX;
+  const torsoVectorY = shoulderMidY - hipCenterY;
+
+  // 4. Calculate Rotation (simplified - 2D angle)
+  let rotation = Math.atan2(torsoVectorY, torsoVectorX); // Radians
+
+  // Convert to degrees
+  let rotationDegrees = rotation * (180 / Math.PI);
+
+  // Quantize to nearest 10 degrees
+  let quantizedRotation = Math.round(rotationDegrees / 10) * 10;
+
+  return quantizedRotation;
+}
+
+const dev = (positions) => {
+  const [poseElbow, poseWrist, handMiddleFingerTip] = positions;
+  const ref = { x: -1, y: 0 };
+  const v = {
+    x: handMiddleFingerTip.x - poseWrist.x,
+    y: handMiddleFingerTip.y - poseWrist.y,
+  };
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x ** 2 + ref.y ** 2);
+  const magV = Math.sqrt(v.x ** 2 + v.y ** 2);
+  if (magV === 0) return 0;
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  return angle < 0 ? Math.abs(angle) : 0;
 };
 
 export const calculateRadialDeviation = (p0, p1, p2) => {
@@ -40,7 +175,7 @@ export const calculateSupination = (p0, p1, p2) => {
   return calculatePronation(p0, p1, p2);
 };
 
-export const calculateLumbarRotation = (
+export const calculateLumbarRotations = (
   leftShoulder,
   rightShoulder,
   leftHip,
@@ -416,6 +551,30 @@ export function calculateRadialUlnar(poseWrist, handMiddleFingerTip) {
   return angle.toFixed(2);
 }
 
+export function calculateRadialUlnarLeft(poseWrist, handMiddleFingerTip) {
+  if (!poseWrist || !handMiddleFingerTip) return null;
+
+  const ref = { x: -1, y: 0 };
+
+  const v = {
+    x: handMiddleFingerTip.x - poseWrist.x,
+    y: handMiddleFingerTip.y - poseWrist.y,
+  };
+
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x ** 2 + ref.y ** 2);
+  const magV = Math.sqrt(v.x ** 2 + v.y ** 2);
+
+  if (magV === 0) return '0.00';
+
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross > 0) angle = -angle;
+
+  return angle.toFixed(2);
+}
+
 /**
  * Calculates the wrist pronation/supination angle using the thumb tip.
  * The reference is a vertical vector (pointing upward).
@@ -438,17 +597,644 @@ export function calculateWristPronationSupination(poseWrist, handThumbTip) {
   const v = {
     x: handThumbTip.x - poseWrist.x,
     y: handThumbTip.y - poseWrist.y,
-    // y: 1 - handThumbTip.y - poseWrist.y, // invert y for hand landmark
   };
 
-  // Calculate the signed angle between the vertical reference and the vector.
-  const angle = signedAngle(ref, v);
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x * ref.x + ref.y * ref.y);
+  const magV = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magRef === 0 || magV === 0) return 0;
 
-  console.log('angle', angle);
-  console.log('v', v);
-  console.log('handThumbTip', handThumbTip);
-  const angleFix = angle - 20.0;
+  // Compute the unsigned angle between the vectors
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Compute the cross product to determine the sign
+  const cross = ref.x * v.y - ref.y * v.x;
+  angle = cross < 0 ? -angle : angle;
+
+  const angleFix = angle.toFixed(2);
+
+  return angleFix;
 
   // (Optional) You may clamp or adjust the angle range if needed.
-  return angleFix.toFixed(2);
+  // return angleFix > 0 ? Math.abs(angleFix) : 0;
 }
+export const leftHandPronation = (positions) => {
+  const [poseElbow, poseWrist, handThumbTip] = positions;
+  const handVector = {
+    x: handThumbTip.x - poseWrist.x,
+    y: handThumbTip.y - poseWrist.y,
+  };
+
+  // Normalize vector
+  const magHand = Math.sqrt(handVector.x ** 2 + handVector.y ** 2);
+  if (magHand === 0) return 0; // Avoid division by zero
+
+  // Dot product with vertical axis (reference is (0, -1))
+  const dot = handVector.y / magHand; // Since ref is (0,-1), dot product simplifies to just `y/mag`
+
+  // Compute angle in degrees
+  let angle = Math.acos(dot) * (180 / Math.PI);
+
+  // Determine direction using the x-component (left or right deviation)
+  if (handVector.x > 0) angle = -angle;
+
+  return angle.toFixed(2); /// Return absolute value of pronation
+};
+
+export const LumbarRotationLeft = (positions) => {
+  const [leftShoulder, rightShoulder, leftHip, rightHip] = positions;
+
+  // 1) Midpoint of hips (reference line)
+  const midX = (leftHip.x + rightHip.x) / 2;
+  const midY = (leftHip.y + rightHip.y) / 2;
+
+  // 2) Midpoint of shoulders (moving point)
+  const shoulderX = (leftShoulder.x + rightShoulder.x) / 2;
+  const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+
+  // 3) Vector from hip midpoint to shoulder midpoint
+  const dx = shoulderX - midX;
+  const dy = shoulderY - midY;
+
+  // 4) Compute angle in degrees relative to vertical
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  // 5) Shift so that 0° = upright
+  let angleFromVertical = angle + 90;
+
+  // 6) Left rotation is negative, so we take only the negative portion
+  let leftRotation = Math.max(0, -angleFromVertical);
+
+  // 7) Round to 2 decimals
+  return Math.round(leftRotation * 100) / 100;
+};
+
+/* STRAPI  */
+
+const LumbarRightLateralFlexion = (positions) => {
+  const [nose, leftHip, rightHip] = positions;
+
+  const midX = (leftHip.x + rightHip.x) / 2;
+  const midY = (leftHip.y + rightHip.y) / 2;
+
+  const dx = nose.x - midX;
+  const dy = nose.y - midY;
+
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  let angleFromVertical = angle + 90;
+
+  // Left flex is the positive portion of the negative side
+  let leftFlex = Math.max(0, -angleFromVertical);
+
+  return Math.round(leftFlex * 100) / 100;
+};
+
+const neckRightRotation = (positions) => {
+  const [nose, leftShoulder, rightShoulder] = positions;
+
+  // Midpoint between shoulders
+  const midX = (leftShoulder.x + rightShoulder.x) / 2;
+  const midY = (leftShoulder.y + rightShoulder.y) / 2;
+
+  // Vector from shoulder-midpoint to nose
+  const dx = nose.x - midX;
+  const dy = nose.y - midY;
+
+  // Angle in degrees from the +X axis
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  // Shift so that 0° = upright
+  let angleFromVertical = angle + 90;
+
+  // Ensure positive rotation
+  const neckRotation = angleFromVertical.toFixed(2);
+  const rightRotation = neckRotation < 0 ? Math.abs(neckRotation) : 0;
+  const leftRotation = neckRotation > 0 ? neckRotation : 0;
+  return rightRotation * 2;
+};
+
+const NeckRighLateralFlexion = (positions) => {
+  // Destructure the points you need.
+  // Make sure positions is [nose, leftShoulder, rightShoulder, ...] in that order.
+  const [nose, leftShoulder, rightShoulder] = positions;
+
+  // 1) Midpoint of shoulders
+  const midX = (leftShoulder.x + rightShoulder.x) / 2;
+  const midY = (leftShoulder.y + rightShoulder.y) / 2;
+
+  // 2) Vector from shoulder-midpoint to nose
+  const dx = nose.x - midX;
+  const dy = nose.y - midY;
+
+  // 3) Angle in degrees from the +X axis
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  // 4) Shift so that 0° = upright
+  let angleFromVertical = angle + 90;
+
+  // 5) Assign variable to rounded angle
+  const roundedAngle = Math.round(angleFromVertical * 100) / 100;
+
+  // 6) Check if angle is lesser than zero and return accordingly
+  if (roundedAngle < 0) {
+    return Math.abs(roundedAngle);
+  } else {
+    return 0;
+  }
+};
+
+const LeftWristExtension = (positions) => {
+  const [poseElbow, poseWrist, handIndexTip] = positions;
+  const ref = { x: -1, y: 0 };
+  const v = handIndexTip
+    ? { x: handIndexTip.x - poseWrist.x, y: handIndexTip.y - poseWrist.y }
+    : { x: 0, y: 0 };
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x * ref.x + ref.y * ref.y);
+  const magV = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magV === 0) return 0;
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross > 0) angle = -angle;
+  return angle < 0 ? Math.abs(angle) : 0;
+};
+
+const LeftWristFlexion = (positions) => {
+  const [poseElbow, poseWrist, handIndexTip] = positions;
+  const ref = { x: -1, y: 0 };
+  const v = handIndexTip
+    ? { x: handIndexTip.x - poseWrist.x, y: handIndexTip.y - poseWrist.y }
+    : { x: 0, y: 0 };
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x * ref.x + ref.y * ref.y);
+  const magV = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magV === 0) return 0;
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross > 0) angle = -angle;
+  return angle > 0 ? angle : 0;
+};
+
+const RightWristSupination = (positions) => {
+  const [poseElbow, poseWrist, handThumbTip] = positions;
+
+  const ref = { x: 0, y: -1 };
+
+  // Compute the vector from the wrist to the thumb tip.
+  const v = {
+    x: handThumbTip.x - poseWrist.x,
+    y: handThumbTip.y - poseWrist.y,
+  };
+
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x * ref.x + ref.y * ref.y);
+  const magV = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magRef === 0 || magV === 0) return 0;
+
+  // Compute the unsigned angle between the vectors
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Compute the cross product to determine the sign
+  const cross = ref.x * v.y - ref.y * v.x;
+  angle = cross > 0 ? -angle : angle;
+
+  const angleFix = angle.toFixed(2);
+
+  // (Optional) You may clamp or adjust the angle range if needed.
+  return angleFix > 0 ? Math.abs(angleFix) : 0;
+};
+
+const RightWristPronation = (positions) => {
+  const [poseElbow, poseWrist, handThumbTip] = positions;
+  const ref = { x: 0, y: -1 };
+
+  // Compute the vector from the wrist to the thumb tip.
+  const v = {
+    x: handThumbTip.x - poseWrist.x,
+    y: handThumbTip.y - poseWrist.y,
+  };
+
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x * ref.x + ref.y * ref.y);
+  const magV = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magRef === 0 || magV === 0) return 0;
+
+  // Compute the unsigned angle between the vectors
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Compute the cross product to determine the sign
+  const cross = ref.x * v.y - ref.y * v.x;
+  angle = cross > 0 ? -angle : angle;
+
+  const angleFix = angle.toFixed(2);
+
+  // (Optional) You may clamp or adjust the angle range if needed.
+  return angleFix < 0 ? Math.abs(angleFix) : 0;
+};
+
+const RightWristRadialDeviation = (positions) => {
+  const [poseElbow, poseWrist, handMiddleFingerTip] = positions; // Extract parameters
+
+  // Define a horizontal reference vector (pointing to the right).
+  const ref = { x: 1, y: 0 };
+
+  // Compute the vector from the wrist to the middle fingertip.
+  const v = {
+    x: handMiddleFingerTip.x - poseWrist.x,
+    y: handMiddleFingerTip.y - poseWrist.y,
+  };
+
+  // Calculate dot product and magnitudes for angle calculation.
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x ** 2 + ref.y ** 2);
+  const magV = Math.sqrt(v.x ** 2 + v.y ** 2);
+
+  // Avoid division by zero.
+  if (magV === 0) return '0.00';
+
+  // Calculate unsigned angle.
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Determine sign using cross product.
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  return angle < 0 ? Math.abs(angle) : 0;
+};
+
+const RightWristUlnarDeviation = (positions) => {
+  const [poseElbow, poseWrist, handMiddleFingerTip] = positions; // Extract parameters
+
+  // Define a horizontal reference vector (pointing to the right).
+  const ref = { x: 1, y: 0 };
+
+  // Compute the vector from the wrist to the middle fingertip.
+  const v = {
+    x: handMiddleFingerTip.x - poseWrist.x,
+    y: handMiddleFingerTip.y - poseWrist.y,
+  };
+
+  // Calculate dot product and magnitudes for angle calculation.
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x ** 2 + ref.y ** 2);
+  const magV = Math.sqrt(v.x ** 2 + v.y ** 2);
+
+  // Avoid division by zero.
+  if (magV === 0) return '0.00';
+
+  // Calculate unsigned angle.
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Determine sign using cross product.
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  return angle > 0 ? angle : 0;
+};
+
+const LeftWristSupination = (positions) => {
+  const [poseElbow, poseWrist, handThumbTip] = positions;
+
+  const ref = { x: 0, y: -1 };
+
+  // Compute the vector from the wrist to the thumb tip.
+  const v = {
+    x: handThumbTip.x - poseWrist.x,
+    y: handThumbTip.y - poseWrist.y,
+  };
+
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x * ref.x + ref.y * ref.y);
+  const magV = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magRef === 0 || magV === 0) return 0;
+
+  // Compute the unsigned angle between the vectors
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Compute the cross product to determine the sign
+  const cross = ref.x * v.y - ref.y * v.x;
+  angle = cross < 0 ? -angle : angle;
+
+  const angleFix = angle.toFixed(2);
+
+  // (Optional) You may clamp or adjust the angle range if needed.
+  return angleFix > 0 ? Math.abs(angleFix) : 0;
+};
+
+const LeftWristPronation = (positions) => {
+  const [poseElbow, poseWrist, handThumbTip] = positions;
+  const ref = { x: 0, y: -1 };
+
+  // Compute the vector from the wrist to the thumb tip.
+  const v = {
+    x: handThumbTip.x - poseWrist.x,
+    y: handThumbTip.y - poseWrist.y,
+  };
+
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x * ref.x + ref.y * ref.y);
+  const magV = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magRef === 0 || magV === 0) return 0;
+
+  // Compute the unsigned angle between the vectors
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Compute the cross product to determine the sign
+  const cross = ref.x * v.y - ref.y * v.x;
+  angle = cross < 0 ? -angle : angle;
+
+  const angleFix = angle.toFixed(2);
+
+  // (Optional) You may clamp or adjust the angle range if needed.
+  return angleFix < 0 ? Math.abs(angleFix) : 0;
+};
+const LeftWristRadialDeviation = (positions) => {
+  const [poseElbow, poseWrist, handMiddleFingerTip] = positions; // Extract parameters
+
+  // Define a horizontal reference vector (pointing to the right).
+  const ref = { x: -1, y: 0 };
+
+  // Compute the vector from the wrist to the middle fingertip.
+  const v = {
+    x: handMiddleFingerTip.x - poseWrist.x,
+    y: handMiddleFingerTip.y - poseWrist.y,
+  };
+
+  // Calculate dot product and magnitudes for angle calculation.
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x ** 2 + ref.y ** 2);
+  const magV = Math.sqrt(v.x ** 2 + v.y ** 2);
+
+  // Avoid division by zero.
+  if (magV === 0) return '0.00';
+
+  // Calculate unsigned angle.
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Determine sign using cross product.
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  return angle > 0 ? Math.abs(angle) : 0;
+};
+
+const LeftWristUlnarDeviation = (positions) => {
+  const [poseElbow, poseWrist, handMiddleFingerTip] = positions;
+  const ref = { x: -1, y: 0 };
+  const v = {
+    x: handMiddleFingerTip.x - poseWrist.x,
+    y: handMiddleFingerTip.y - poseWrist.y,
+  };
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x ** 2 + ref.y ** 2);
+  const magV = Math.sqrt(v.x ** 2 + v.y ** 2);
+  if (magV === 0) return 0;
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  return angle < 0 ? Math.abs(angle) : 0;
+};
+
+const NeckLeftLateralFlexion = (positions) => {
+  // Destructure the points you need.
+  // Make sure positions is [nose, leftShoulder, rightShoulder, ...] in that order.
+  const [nose, leftShoulder, rightShoulder] = positions;
+
+  // 1) Midpoint of shoulders
+  const midX = (leftShoulder.x + rightShoulder.x) / 2;
+  const midY = (leftShoulder.y + rightShoulder.y) / 2;
+
+  // 2) Vector from shoulder-midpoint to nose
+  const dx = nose.x - midX;
+  const dy = nose.y - midY;
+
+  // 3) Angle in degrees from the +X axis
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  // 4) Shift so that 0° = upright
+  let angleFromVertical = angle + 90;
+
+  // 5) Assign variable to rounded angle
+  const roundedAngle = (Math.round(angleFromVertical * 100) / 100) * 2.2;
+
+  // 6) Check if angle is greater than zero and return accordingly
+  return roundedAngle > 0 ? roundedAngle.toFixed(2) : 0;
+};
+const NeckRightLateralFlexion = (positions) => {
+  // Destructure the points you need.
+  const [p0, p1, p2] = positions;
+
+  // 1) Midpoint of shoulders
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
+
+  // 2) Vector from shoulder-midpoint to nose
+  const dx = p0.x - midX;
+  const dy = p0.y - midY;
+
+  // 3) Angle in degrees from the +X axis
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  // 4) Shift so that 0° = upright
+  let angleFromVertical = angle + 90;
+
+  // 5) Assign variable to rounded angle
+  const roundedAngle = (Math.round(angleFromVertical * 100) / 100) * 2.2;
+
+  // 6) Check if angle is lesser than zero and return accordingly
+  return roundedAngle < 0 ? Math.abs(roundedAngle.toFixed(2)) : 0;
+};
+
+const RightWristExtension = (positions) => {
+  const [poseElbow, poseWrist, handIndexTip] = positions;
+  const ref = { x: 1, y: 0 };
+  const v = handIndexTip
+    ? { x: handIndexTip.x - poseWrist.x, y: handIndexTip.y - poseWrist.y }
+    : { x: 0, y: 0 };
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x * ref.x + ref.y * ref.y);
+  const magV = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magV === 0) return 0;
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  return angle < 0 ? Math.abs(angle) : 0;
+};
+
+const RightWristFlexion = (positions) => {
+  const [poseElbow, poseWrist, handIndexTip] = positions;
+  const ref = { x: 1, y: 0 };
+  const v = handIndexTip
+    ? { x: handIndexTip.x - poseWrist.x, y: handIndexTip.y - poseWrist.y }
+    : { x: 0, y: 0 };
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x * ref.x + ref.y * ref.y);
+  const magV = Math.sqrt(v.x * v.x + v.y * v.y);
+  if (magV === 0) return 0;
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  return angle > 0 ? angle : 0;
+};
+const LumbarLeftLateralFlexion = (positions) => {
+  // Destructure the points you need.
+  // Make sure positions is [nose, leftHip, rightHip, ...] in that order.
+  const [nose, leftHip, rightHip] = positions;
+
+  // 1) Midpoint of hips
+  const midX = (leftHip.x + rightHip.x) / 2;
+  const midY = (leftHip.y + rightHip.y) / 2;
+
+  // 2) Vector from hip-midpoint to nose
+  const dx = nose.x - midX;
+  const dy = nose.y - midY;
+
+  // 3) Angle in degrees from the +X axis
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  // 4) Shift so that 0° = upright
+  let angleFromVertical = angle + 90;
+
+  // 5) Right flex is positive portion only
+  let rightFlex = Math.max(0, angleFromVertical);
+
+  // 6) Round to 2 decimals
+  return Math.round(rightFlex * 100) / 100;
+};
+
+const NeckLeftRotation = (positions) => {
+  const [nose, leftShoulder, rightShoulder] = positions;
+
+  // Midpoint between shoulders
+  const midX = (leftShoulder.x + rightShoulder.x) / 2;
+  const midY = (leftShoulder.y + rightShoulder.y) / 2;
+
+  // Vector from shoulder-midpoint to nose
+  const dx = nose.x - midX;
+  const dy = nose.y - midY;
+
+  // Angle in degrees from the +X axis
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  // Shift so that 0° = upright
+  let angleFromVertical = angle + 90;
+
+  // Ensure positive rotation
+  const neckRotation = angleFromVertical.toFixed(2);
+  const rightRotation = neckRotation < 0 ? Math.abs(neckRotation * 3.5) : 0;
+  const leftRotation = neckRotation > 0 ? neckRotation * 4.2 : 0;
+  return rightRotation.toFixed(2);
+};
+
+const NeckExtension = (positions) => {
+  const [p0, p1, p2] = positions;
+  const dx = p0.x - p1.x;
+  const dy = p0.y - p1.y;
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  let neckExtension = Math.max(0, 90 - Math.abs(angle));
+  const roundedAngle = Math.round(neckExtension * 100) / 100;
+  return (roundedAngle * 2.5).toFixed(2);
+};
+
+const LumbarLeftExtension = (positions) => {
+  const [p0, p1, p2] = positions;
+  const a = Math.pow(p1.x - p0.x, 2) + Math.pow(p1.y - p0.y, 2);
+  const b = Math.pow(p2.x - p0.x, 2) + Math.pow(p2.y - p0.y, 2);
+  const c = Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2);
+
+  let angle = Math.acos((a + b - c) / Math.sqrt(4 * a * b)) * (180 / Math.PI);
+
+  // Ensure 0° when standing straight and increase with backward bending
+  angle = Math.abs(180 - angle);
+  const lumbarExtension = (Math.round(angle * 100) / 100) * 1.3;
+  return lumbarExtension.toFixed(2);
+};
+const LumbarLeftRotation = (positions) => {
+  // Assuming landmarks are provided by MediaPipe Pose in normalized coordinates
+
+  const [p0, p1, p2, p3] = positions;
+
+  // Compute midpoints for hips and shoulders
+  const hipCenter = {
+    x: (p0.x + p1.x) / 2,
+    y: (p0.y + p1.y) / 2,
+  };
+
+  const shoulderCenter = {
+    x: (p2.x + p3.x) / 2,
+    y: (p2.y + p3.y) / 2,
+  };
+
+  // Compute torso vector (from hip center to shoulder center)
+  const v = {
+    x: shoulderCenter.x - hipCenter.x,
+    y: shoulderCenter.y - hipCenter.y,
+  };
+
+  // Define vertical reference vector (pointing straight up)
+  const ref = { x: 0, y: -1 };
+
+  // Calculate dot product and magnitudes
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x ** 2 + ref.y ** 2);
+  const magV = Math.sqrt(v.x ** 2 + v.y ** 2);
+
+  if (magV === 0) return '0.00'; // Avoid division by zero
+
+  // Calculate angle using acos (in degrees)
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Determine sign using cross product
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  const angleFix = (angle * 10).toFixed(2);
+
+  return angleFix < 0 ? Math.abs(angleFix) : 0;
+};
+const LumbarRightRotation = (positions) => {
+  const [p0, p1, p2, p3] = positions;
+
+  // Compute midpoints for hips and shoulders
+  const hipCenter = {
+    x: (p0.x + p1.x) / 2,
+    y: (p0.y + p1.y) / 2,
+  };
+
+  const shoulderCenter = {
+    x: (p2.x + p3.x) / 2,
+    y: (p2.y + p3.y) / 2,
+  };
+
+  // Compute torso vector (from hip center to shoulder center)
+  const v = {
+    x: shoulderCenter.x - hipCenter.x,
+    y: shoulderCenter.y - hipCenter.y,
+  };
+
+  // Define vertical reference vector (pointing straight up)
+  const ref = { x: 0, y: -1 };
+
+  // Calculate dot product and magnitudes
+  const dot = ref.x * v.x + ref.y * v.y;
+  const magRef = Math.sqrt(ref.x ** 2 + ref.y ** 2);
+  const magV = Math.sqrt(v.x ** 2 + v.y ** 2);
+
+  if (magV === 0) return '0.00'; // Avoid division by zero
+
+  // Calculate angle using acos (in degrees)
+  let angle = Math.acos(dot / (magRef * magV)) * (180 / Math.PI);
+
+  // Determine sign using cross product
+  const cross = ref.x * v.y - ref.y * v.x;
+  if (cross < 0) angle = -angle;
+  const angleFix = (angle * 10).toFixed(2);
+
+  return angleFix > 0 ? (angleFix / 1.4).toFixed(2) : 0;
+};
+
+export {
+  NeckExtension,
+  NeckLeftLateralFlexion,
+  NeckRightLateralFlexion,
+  NeckLeftRotation,
+  LumbarLeftExtension,
+  LumbarLeftRotation,
+  LumbarRightRotation,
+};

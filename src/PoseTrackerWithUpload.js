@@ -1,69 +1,35 @@
-import {
-  FilesetResolver,
-  PoseLandmarker,
-  HandLandmarker,
-} from '@mediapipe/tasks-vision';
-import { DrawingUtils } from 'https://unpkg.com/@mediapipe/tasks-vision@0.10.21-rc.20250110/vision_bundle.mjs';
+import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { Button } from 'primereact/button';
-import { Dialog } from 'primereact/dialog';
 import React, { useEffect, useRef, useState } from 'react';
-import { Messages } from './Messages';
-import {
-  calculateCombinedWristAngle,
-  calculateLumbarExtension,
-  calculateLumbarFlexion,
-  calculateLumbarLateral,
-  calculateLumbarLateralFlexion,
-  calculateLumbarRotation,
-  calculateNeckExtension,
-  calculateNeckFlexion,
-  calculateNeckLateralBending,
-  calculateNeckRotation,
-  calculatePronation,
-  calculateRadialDeviation,
-  calculateRadialUlnar,
-  calculateSupination,
-  calculateUlnarDeviation,
-  calculateWristExtension,
-  calculateWristFlexion,
-  calculateWristFlexionExtension,
-  calculateWristPronationSupination,
-  skeletonColors,
-} from './helpers';
 
-const jointRadius = 5;
-const lineWidth = 5;
+// const landmarksToRemove = [
+//   0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 18, 19, 20, 21, 22,
+// ];
+const landmarksToRemove = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const drawOptions = { color: 'white', lineWidth: 5, visibilityMin: 0.65 };
+const defaultVideoSize = { width: 1280, height: 720 };
+
+const boneImages = {
+  humerus: new Image(),
+  radius: new Image(),
+  femur: new Image(),
+  spine: new Image(),
+};
+
+boneImages.humerus.src = 'bone.png';
+boneImages.radius.src = 'bone.png';
+boneImages.femur.src = 'femur.png';
+boneImages.spine.src = 'spine.png';
 
 const PoseTrackerWithUpload = () => {
   const [poseLandmarker, setPoseLandmarker] = useState(null);
-  const [handLandmarker, setHandLandmarker] = useState(null);
   const [webcamRunning, setWebcamRunning] = useState(false);
-  const [insideFrame, setInsideFrame] = useState(false);
-  const [toastActive, setToastActive] = useState(false);
   const [imagePoseLandmarker, setImagePoseLandmarker] = useState(null);
-  const [uploadedImage, setUploadedImage] = useState(null); // New state for uploaded image
-  const [message, setMessage] = useState(Messages.GET_BACK);
-  const [visible, setVisible] = useState(false);
-  const [position, setPosition] = useState('top');
-  const [lumbarRotation, setLumbarRotation] = useState('');
-  const [pronation, setPronation] = useState('');
-  const [supinion, setSupinion] = useState('');
-  const [ulnar, setUlnar] = useState('');
-  const [radial, setRadial] = useState('');
-  const [lateral, setLateral] = useState('');
-  const [handAngles, setHandAngles] = useState('');
-  const [hasEnteredFrame, setHasEnteredFrame] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const toast = useRef(null);
-  const animationFrameId = useRef(null); // Track the animation frame ID
-  const imageCanvasRef = useRef(null); // New ref for image canvas
+  const videoSize = defaultVideoSize;
 
-  // Define the frame boundaries
-  const frameLeft = 300;
-  const frameTop = 20;
-  const frameWidth = 680;
-  const frameHeight = 660;
+  const animationFrameId = useRef(null); // Track the animation frame ID
 
   // ✅ Load Mediapipe Pose Detector
   useEffect(() => {
@@ -75,8 +41,7 @@ const PoseTrackerWithUpload = () => {
         baseOptions: {
           modelAssetPath:
             'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task',
-          // modelAssetPath:
-          //   'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+
           delegate: 'GPU',
         },
         runningMode: 'VIDEO',
@@ -84,17 +49,8 @@ const PoseTrackerWithUpload = () => {
         minPoseDetectionConfidence: 0.6,
         minTrackingConfidence: 0.6,
       });
-      const handLandmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath:
-            'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
-          delegate: 'GPU',
-        },
-        runningMode: 'VIDEO',
-        numHands: 2,
-      });
+
       setPoseLandmarker(landmarker);
-      setHandLandmarker(handLandmarker);
     };
     loadPoseLandmarker();
   }, []);
@@ -120,293 +76,6 @@ const PoseTrackerWithUpload = () => {
     loadImagePoseLandmarker();
   }, []);
 
-  const drawTextWithBackground = (
-    ctx,
-    text,
-    x,
-    y,
-    textColor = 'white',
-    bgColor = 'black'
-  ) => {
-    return;
-    ctx.font = '20px Arial'; // Set the font
-    const textWidth = ctx.measureText(text).width; // Measure text width
-    const padding = 5; // Padding around the text
-
-    // Draw the background rectangle
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(x - padding, y - 20, textWidth + padding * 2, 25);
-
-    // Draw the text on top
-    ctx.fillStyle = textColor;
-    ctx.fillText(text, x, y);
-  };
-
-  const calculateAngles = (landmarks, ctx) => {
-    if (!landmarks || !ctx) return;
-    const leftEar = landmarks[7];
-    const leftShoulder = landmarks[11];
-    const nose = landmarks[0];
-    const leftHip = landmarks[23];
-    const leftKnee = landmarks[25];
-    const rightElbow = landmarks[14];
-    const rightWrist = landmarks[16];
-    const rightIndex = landmarks[21];
-    const rightHip = landmarks[24];
-    const rightShoulder = landmarks[12];
-
-    const leftElbow = landmarks[14];
-    const leftWrist = landmarks[16];
-    const indexFinger = landmarks[19];
-    const pinkyFinger = landmarks[18];
-    const midShoulder = {
-      x: (leftShoulder.x + rightShoulder.x) / 2,
-      y: (leftShoulder.y + rightShoulder.y) / 2,
-    };
-    const midHip = {
-      x: (leftHip.x + rightHip.x) / 2,
-      y: (leftHip.y + rightHip.y) / 2,
-    };
-
-    // Neck Flexion
-    if (leftEar && leftShoulder && nose) {
-      const neckFlexion = calculateNeckFlexion(leftEar, leftShoulder, nose);
-      drawTextWithBackground(ctx, `Neck Flexion: ${neckFlexion}°`, 10, 40);
-    }
-
-    // Neck Extension
-    if (leftEar && leftShoulder && nose) {
-      const neckExtension = calculateNeckExtension(leftEar, leftShoulder, nose);
-      drawTextWithBackground(ctx, `Neck Extension: ${neckExtension}°`, 10, 60);
-    }
-
-    // Lumbar Flexion
-    if (leftHip && leftShoulder && leftKnee) {
-      const lumbarFlexion = calculateLumbarFlexion(
-        leftHip,
-        leftShoulder,
-        leftKnee
-      );
-
-      drawTextWithBackground(ctx, `Lumbar Flexion: ${lumbarFlexion}°`, 10, 80);
-    }
-    // Wrist Flexion
-    if (rightElbow && rightWrist && rightIndex) {
-      const wristFlexion = calculateWristFlexion(
-        rightElbow,
-        rightWrist,
-        rightIndex
-      );
-
-      drawTextWithBackground(ctx, `Wrist Flexion: ${wristFlexion}°`, 10, 120);
-    }
-
-    // Wrist Extension
-    if (rightElbow && rightWrist && rightIndex) {
-      const wristExtension = calculateWristExtension(
-        rightElbow,
-        rightWrist,
-        rightIndex
-      );
-
-      drawTextWithBackground(
-        ctx,
-        `Wrist Extension: ${wristExtension}°`,
-        10,
-        140
-      );
-    }
-
-    // Lumbar Extension
-    if (leftHip && leftShoulder && leftKnee) {
-      const lumbarExtension = calculateLumbarExtension(
-        leftHip,
-        leftShoulder,
-        leftKnee
-      );
-
-      drawTextWithBackground(
-        ctx,
-        `Lumbar Extension: ${lumbarExtension}°`,
-        10,
-        100
-      );
-    }
-    // Lumbar Lateral Flexion
-
-    if (nose && leftShoulder && rightShoulder) {
-      const neckLateralBend = calculateNeckLateralBending(
-        nose,
-        leftShoulder,
-        rightShoulder
-      );
-      const neckRotation = calculateNeckRotation(
-        nose,
-        leftShoulder,
-        rightShoulder
-      );
-
-      // Determine bending direction
-      const direction =
-        nose.x < leftShoulder.x
-          ? 'Left'
-          : nose.x > rightShoulder.x
-          ? 'Right'
-          : 'Center';
-
-      drawTextWithBackground(
-        ctx,
-        `Neck Lateral Bending (${direction}): ${neckLateralBend}°`,
-        10,
-        180
-      );
-      drawTextWithBackground(
-        ctx,
-        `Neck Rotation (${direction}): ${neckRotation}°`,
-        10,
-        200
-      );
-    }
-
-    // Ulnar Deviation
-    if (indexFinger && pinkyFinger && leftWrist) {
-      const ulnarDeviation = calculateUlnarDeviation(
-        indexFinger,
-        pinkyFinger,
-        leftWrist
-      );
-      drawTextWithBackground(
-        ctx,
-        `Ulnar Deviation: ${ulnarDeviation}°`,
-        10,
-        220
-      );
-    }
-
-    // Radial Deviation
-    if (indexFinger && pinkyFinger && leftWrist) {
-      const radialDeviation = calculateRadialDeviation(
-        indexFinger,
-        pinkyFinger,
-        leftWrist
-      );
-      drawTextWithBackground(
-        ctx,
-        `Radial Deviation: ${radialDeviation}°`,
-        10,
-        240
-      );
-    }
-
-    // Pronation
-    if (leftElbow && leftWrist && indexFinger) {
-      const pronation = calculatePronation(leftElbow, leftWrist, indexFinger);
-      drawTextWithBackground(ctx, `Pronation: ${pronation}°`, 10, 260);
-    }
-
-    // Supination
-    if (leftElbow && leftWrist && indexFinger) {
-      const supination = calculateSupination(leftElbow, leftWrist, indexFinger);
-      drawTextWithBackground(ctx, `Supination: ${supination}°`, 10, 280);
-    }
-
-    if (nose && leftHip && rightHip && leftShoulder) {
-      // const lateralFlexion = calculateLumbarLateralFlexion(
-      //   nose,
-      //   midShoulder,
-      //   midHip
-      // );
-      const lateralFlexion = calculateLumbarLateral(
-        nose,
-        leftHip,
-        rightHip,
-        leftShoulder
-      );
-      // setLateral(`Lumbar Lateral : ${lateralFlexion}°`);
-      drawTextWithBackground(
-        ctx,
-        `Lumbar Lateral : ${lateralFlexion}°`,
-        10,
-        160
-      );
-    }
-
-    // Lumbar Rotation
-    if (leftShoulder && rightShoulder && leftHip && rightHip) {
-      const lumbarRotationExercise = calculateLumbarRotation(
-        leftShoulder,
-        rightShoulder,
-        leftHip,
-        rightHip
-      );
-      console.log('lumbarRotation', lumbarRotationExercise);
-      // setLumbarRotation(`Lumbar Rotation: ${lumbarRotationExercise}°`);
-      // const direction =
-      //   nose.x < leftHip.x ? 'Left' : nose.x > rightHip.x ? 'Right' : 'Center';
-      // drawTextWithBackground(
-      //   ctx,
-      //   `Lumbar Rotation (${direction}): ${lumbarRotation}°`,
-      //   10,
-      //   300
-      // );
-    }
-  };
-
-  // ✅ Process Image and Detect Pose
-  const processImage = async (imageSrc) => {
-    if (!imagePoseLandmarker) return;
-
-    const image = new Image();
-    image.src = imageSrc;
-    image.onload = async () => {
-      const canvas = imageCanvasRef.current;
-      const ctx = canvas.getContext('2d');
-      canvas.width = image.width;
-      canvas.height = image.height;
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-      const results = await imagePoseLandmarker.detect(image);
-      if (results?.landmarks.length > 0) {
-        const landmarks = results.landmarks[0];
-        const drawingUtils = new DrawingUtils(ctx);
-
-        calculateAngles(landmarks, ctx);
-
-        drawingUtils.drawConnectors(
-          landmarks,
-          PoseLandmarker.POSE_CONNECTIONS,
-          {
-            color: skeletonColors.left_shoulder_hand,
-            lineWidth: lineWidth,
-          }
-        );
-
-        landmarks.forEach((landmark, index) => {
-          const landmarkName = Object.keys(skeletonColors)[index];
-          const color = skeletonColors[landmarkName] || 'rgb(255, 255, 255)';
-          drawingUtils.drawLandmarks([landmark], {
-            radius: jointRadius,
-            color: color,
-          });
-        });
-      }
-    };
-  };
-
-  // ✅ Handle Image Upload
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setUploadedImage(e.target.result);
-        processImage(e.target.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // ✅ Handle Webcam Toggle
   const handleEnableWebcam = async () => {
     if (!poseLandmarker) {
       // toast.error('PoseLandmarker not loaded yet.');
@@ -415,24 +84,280 @@ const PoseTrackerWithUpload = () => {
     setWebcamRunning((prev) => !prev);
   };
 
-  // ✅ Check if user is inside the frame
-  const isWithinFrame = (landmarks) => {
-    return landmarks.every(
-      (lm) =>
-        lm.x * 1280 > frameLeft &&
-        lm.x * 1280 < frameLeft + frameWidth &&
-        lm.y * 720 > frameTop &&
-        lm.y * 720 < frameTop + frameHeight
-    );
+  // useEffect(() => {
+  //   if (!poseLandmarker) return;
+  //   if (!webcamRunning) {
+  //     setWebcamRunning((prev) => !prev);
+  //   }
+  // }, [poseLandmarker]);
+
+  // const drawCallback = (results) => {
+  //   if (!results.landmarks[0] || !canvasRef.current) return;
+  //   const canvasCtx = canvasRef.current.getContext('2d');
+  //   const { width, height } = videoSize;
+  //   canvasCtx.save();
+  //   canvasCtx.clearRect(0, 0, width, height);
+  //   canvasCtx.fillStyle = 'white';
+  //   // const landmarks = results.landmarks[0];
+
+  //   PoseLandmarker.POSE_CONNECTIONS.forEach((connection) => {
+  //     const { start, end } = connection;
+  //     if (
+  //       !landmarksToRemove.includes(start) &&
+  //       !landmarksToRemove.includes(end)
+  //     ) {
+  //       const startLandmark = results.landmarks[0][start];
+  //       const endLandmark = results.landmarks[0][end];
+  //       if (
+  //         startLandmark.visibility < drawOptions.visibilityMin ||
+  //         endLandmark.visibility < drawOptions.visibilityMin
+  //       ) {
+  //         canvasCtx.restore();
+  //         return;
+  //       }
+  //       const startX = startLandmark.x * width;
+  //       const startY = startLandmark.y * height;
+  //       const endX = endLandmark.x * width;
+  //       const endY = endLandmark.y * height;
+
+  //       // Draw connection line
+  //       canvasCtx.globalCompositeOperation = 'destination-over';
+  //       canvasCtx.lineWidth = drawOptions.lineWidth;
+  //       canvasCtx.strokeStyle = drawOptions.color;
+  //       // canvasCtx.setLineDash([4, 4]);
+  //       canvasCtx.beginPath();
+  //       canvasCtx.moveTo(startX, startY);
+  //       canvasCtx.lineTo(endX, endY);
+  //       canvasCtx.stroke();
+
+  //       // Draw endpoints
+  //       canvasCtx.globalCompositeOperation = 'source-over';
+  //       canvasCtx.fillStyle =
+  //         start % 2 === 0 ? 'rgb(0,217,231)' : 'rgb(255,138,0)';
+  //       canvasCtx.beginPath();
+  //       canvasCtx.arc(
+  //         startX,
+  //         startY,
+  //         drawOptions.lineWidth + 2,
+  //         0,
+  //         2 * Math.PI
+  //       );
+  //       canvasCtx.arc(endX, endY, drawOptions.lineWidth + 2, 0, 2 * Math.PI);
+  //       canvasCtx.fill();
+  //     }
+  //   });
+
+  //   canvasCtx.restore();
+  // };
+
+  const drawBoneImage = (ctx, img, x1, y1, x2, y2, thickness = 16) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const angle = Math.atan2(dy, dx);
+    const length = Math.sqrt(dx * dx + dy * dy);
+
+    ctx.save();
+    ctx.translate(x1, y1);
+    ctx.rotate(angle);
+    ctx.drawImage(img, 0, -thickness / 2, length, thickness);
+    ctx.restore();
+  };
+
+  // const drawSpineImage = (ctx, img, landmarks, spineWidth = 30) => {
+  //   const { width: W, height: H } = videoSize;
+
+  //   const leftShoulder = landmarks[11];
+  //   const rightShoulder = landmarks[12];
+  //   const leftHip = landmarks[23];
+  //   const rightHip = landmarks[24];
+
+  //   if (
+  //     leftShoulder.visibility < drawOptions.visibilityMin ||
+  //     rightShoulder.visibility < drawOptions.visibilityMin ||
+  //     leftHip.visibility < drawOptions.visibilityMin ||
+  //     rightHip.visibility < drawOptions.visibilityMin
+  //   )
+  //     return;
+
+  //   // Midpoints
+  //   const topX = ((leftShoulder.x + rightShoulder.x) / 2) * W;
+  //   const topY = ((leftShoulder.y + rightShoulder.y) / 2) * H;
+  //   const bottomX = ((leftHip.x + rightHip.x) / 2) * W;
+  //   const bottomY = ((leftHip.y + rightHip.y) / 2) * H;
+
+  //   // Rotation and drawing
+  //   const dx = bottomX - topX;
+  //   const dy = bottomY - topY;
+  //   const angle = Math.atan2(dy, dx);
+  //   const length = Math.sqrt(dx * dx + dy * dy);
+
+  //   ctx.save();
+  //   ctx.translate(topX, topY);
+  //   ctx.rotate(angle);
+  //   ctx.drawImage(img, 0, -spineWidth / 2, length, spineWidth);
+  //   // ctx.drawImage(img, -spineWidth / 2, 0, spineWidth, length);
+  //   ctx.restore();
+  // };
+
+  const drawSpineImage = (ctx, img, landmarks, spineWidth = 30) => {
+    const { width: W, height: H } = videoSize;
+
+    const leftShoulder = landmarks[11];
+    const rightShoulder = landmarks[12];
+    const leftHip = landmarks[23];
+    const rightHip = landmarks[24];
+
+    if (
+      leftShoulder.visibility < drawOptions.visibilityMin ||
+      rightShoulder.visibility < drawOptions.visibilityMin ||
+      leftHip.visibility < drawOptions.visibilityMin ||
+      rightHip.visibility < drawOptions.visibilityMin
+    )
+      return;
+
+    // Midpoints of shoulders and hips
+    const topX = ((leftShoulder.x + rightShoulder.x) / 2) * W;
+    const topY = ((leftShoulder.y + rightShoulder.y) / 2) * H;
+    const bottomX = ((leftHip.x + rightHip.x) / 2) * W;
+    const bottomY = ((leftHip.y + rightHip.y) / 2) * H;
+
+    const dx = bottomX - topX;
+    const dy = bottomY - topY;
+    // const angle = Math.atan2(dy, dx); // angle spine should follow
+    const length = Math.sqrt(dx * dx + dy * dy); // length of spine image on canvas
+
+    // 🧠 Image is vertical, so we want to draw it upright, stretching height = length
+    ctx.save();
+    ctx.translate(topX, topY);
+    ctx.rotate(0); // rotate spine to align top → bottom
+    ctx.drawImage(img, -spineWidth / 2, 0, spineWidth, length);
+    ctx.restore();
+  };
+
+  const drawSpineLine = (ctx, landmarks, width, color) => {
+    const ls = landmarks[11];
+    const rs = landmarks[12];
+    const lh = landmarks[23];
+    const rh = landmarks[24];
+
+    if ([ls, rs, lh, rh].some((l) => l.visibility < 0.75)) return;
+
+    const { width: W, height: H } = videoSize;
+
+    const midTopX = ((ls.x + rs.x) / 2) * W;
+    const midTopY = ((ls.y + rs.y) / 2) * H;
+    const midBottomX = ((lh.x + rh.x) / 2) * W;
+    const midBottomY = ((lh.y + rh.y) / 2) * H;
+
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.moveTo(midTopX, midTopY);
+    ctx.lineTo(midBottomX, midBottomY);
+    ctx.stroke();
+  };
+
+  const customBoneMap = [
+    { joints: [11, 13], width: 18, color: '#FFFFFF' }, // Left humerus
+    { joints: [13, 15], width: 12, color: '#CCCCCC' }, // Left radius
+    { joints: [12, 14], width: 18, color: '#FFFFFF' }, // Right humerus
+    { joints: [14, 16], width: 12, color: '#CCCCCC' }, // Right radius
+    { joints: [23, 25], width: 20, color: '#EEEEEE' }, // Left femur
+    { joints: [25, 27], width: 14, color: '#AAAAAA' }, // Left tibia
+    { joints: [24, 26], width: 20, color: '#EEEEEE' }, // Right femur
+    { joints: [26, 28], width: 14, color: '#AAAAAA' }, // Right tibia
+    { joints: [11, 12], width: 10, color: '#999999' }, // Clavicle
+    { joints: [23, 24], width: 22, color: '#DDDDDD' }, // Pelvis
+    { joints: [11, 23], width: 16, color: '#FFFFFF' }, // Left torso
+    { joints: [12, 24], width: 16, color: '#FFFFFF' }, // Right torso
+  ];
+
+  const drawCapsuleBone = (ctx, x1, y1, x2, y2, width, color) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+    const radius = width / 2;
+
+    ctx.save();
+    ctx.translate(x1, y1);
+    ctx.rotate(angle);
+
+    ctx.beginPath();
+    ctx.moveTo(0, -radius);
+    ctx.lineTo(length, -radius);
+    ctx.arc(length, 0, radius, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(0, radius);
+    ctx.arc(0, 0, radius, Math.PI / 2, -Math.PI / 2);
+    ctx.closePath();
+
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+  };
+
+  const drawSpineBone = (ctx, landmarks, width = 18, color = '#FFFFFF') => {
+    const { width: W, height: H } = videoSize;
+
+    const topX = ((landmarks[11].x + landmarks[12].x) / 2) * W;
+    const topY = ((landmarks[11].y + landmarks[12].y) / 2) * H;
+    const bottomX = ((landmarks[23].x + landmarks[24].x) / 2) * W;
+    const bottomY = ((landmarks[23].y + landmarks[24].y) / 2) * H;
+
+    drawCapsuleBone(ctx, topX, topY, bottomX, bottomY, width, color);
+  };
+
+  const drawCallback = (results) => {
+    if (!results.landmarks[0] || !canvasRef.current) return;
+
+    const ctx = canvasRef.current.getContext('2d');
+    const { width, height } = videoSize;
+    ctx.clearRect(0, 0, width, height);
+    const landmarks = results.landmarks[0];
+
+    // Custom bone connection map
+    const customBones = [
+      { points: [11, 13], bone: 'radius' }, // Left upper arm
+      { points: [13, 15], bone: 'radius' }, // Left lower arm
+      { points: [12, 14], bone: 'radius' }, // Right upper arm
+      { points: [14, 16], bone: 'radius' }, // Right lower arm
+      { points: [23, 25], bone: 'radius' }, // Left upper leg
+      { points: [25, 27], bone: 'radius' }, // Left lower leg (for demo)
+      { points: [24, 26], bone: 'radius' }, // Right upper leg
+      { points: [26, 28], bone: 'radius' }, // Right lower leg (for demo)
+      { points: [11, 12], bone: 'humerus' }, // Shoulder spine
+      { points: [23, 24], bone: 'humerus' }, // Hip spine
+      // { points: [11, 23], bone: 'femur' }, // Left torso
+      // { points: [12, 24], bone: 'femur' }, // Right torso
+    ];
+
+    customBones.forEach(({ points: [startIdx, endIdx], bone }) => {
+      const start = landmarks[startIdx];
+      const end = landmarks[endIdx];
+
+      if (
+        start.visibility < drawOptions.visibilityMin ||
+        end.visibility < drawOptions.visibilityMin
+      )
+        return;
+
+      const x1 = start.x * width;
+      const y1 = start.y * height;
+      const x2 = end.x * width;
+      const y2 = end.y * height;
+
+      drawBoneImage(ctx, boneImages[bone], x1, y1, x2, y2, 80);
+      drawSpineImage(ctx, boneImages.spine, landmarks, 120);
+    });
+
+    //   // Optionally draw spine center line:
+    //   // drawSpineLine(ctx, landmarks, 6, 'white');
   };
 
   const predictWebcam = async () => {
     if (!poseLandmarker || !webcamRunning) return;
 
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const drawingUtils = new DrawingUtils(ctx);
 
     const detectFrame = async () => {
       if (!video.videoWidth || !video.videoHeight) {
@@ -442,210 +367,23 @@ const PoseTrackerWithUpload = () => {
         }
         return;
       }
+      // ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const results = await poseLandmarker.detectForVideo(
-        video,
-        performance.now()
-      );
-      const handResults = await handLandmarker.detectForVideo(
-        video,
-        performance.now()
-      );
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if (
-        results?.landmarks.length > 0 &&
-        handResults?.landmarks &&
-        handResults.landmarks.length > 0
-      ) {
-        const poseLandmarks = results.landmarks[0];
-        // userInside = isWithinFrame(landmarks);
-
-        // If the user enters the frame for the first time, update the state
-        // if (userInside && !hasEnteredFrame) {
-        //   setHasEnteredFrame(true);
-        // }
-        // const poseConnectionsArray = Object.values(
-        //   PoseLandmarker.POSE_CONNECTIONS
-        // );
-        // const filteredPoseConnections = poseConnectionsArray.filter(
-        //   ([start, end]) => {
-        //     const skipStart =
-        //       (start >= 1 && start <= 10) || (start >= 16 && start <= 22);
-        //     const skipEnd = (end >= 1 && end <= 10) || (end >= 16 && end <= 22);
-        //     return !(skipStart || skipEnd);
-        //   }
-        // );
-
-        // Filter out face landmarks (indices 0 to 10)
-        const filteredPoseLandmarks = poseLandmarks.filter(
-          (_, index) => index > 10
-        );
-
-        //  Convert POSE_CONNECTIONS object to an array of connections
-        // const poseConnectionsArray = Object.values(
-        //   PoseLandmarker.POSE_CONNECTIONS
-        // );
-
-        const poseConnectionsArray = [];
-        for (const key in PoseLandmarker.POSE_CONNECTIONS) {
-          if (Object.hasOwn(PoseLandmarker.POSE_CONNECTIONS, key)) {
-            const connection = PoseLandmarker.POSE_CONNECTIONS[key];
-            // If connection is already an array, use it; if not, assume it has .start and .end
-            if (Array.isArray(connection)) {
-              poseConnectionsArray.push(connection);
-            } else if (
-              connection.start !== undefined &&
-              connection.end !== undefined
-            ) {
-              poseConnectionsArray.push([connection.start, connection.end]);
-            }
-          }
-        }
-
-        // Filter pose connections to exclude connections involving face landmarks
-        const filteredPoseConnections = poseConnectionsArray.filter(
-          ([start, end]) => start > 10 && end > 10
-        );
-        // drawingUtils.drawConnectors(
-        //   filteredPoseLandmarks,
-        //   filteredPoseConnections,
-        //   {
-        //     color: skeletonColors.left_shoulder_hand,
-        //     lineWidth: lineWidth,
-        //   }
-        // );
-
-        // drawingUtils.drawConnectors(
-        //   poseLandmarks,
-        //   PoseLandmarker.POSE_CONNECTIONS,
-        //   {
-        //     color: skeletonColors.left_shoulder_hand,
-        //     lineWidth: lineWidth,
-        //   }
-        // );
-
-        // poseLandmarks.forEach((landmark, index) => {
-        //   const landmarkName = Object.keys(skeletonColors)[index];
-        //   const color = skeletonColors[landmarkName] || 'rgb(255, 255, 255)';
-        //   drawingUtils.drawLandmarks([landmark], {
-        //     radius: jointRadius,
-        //     color: color,
-        //   });
-        // });
-
-        // Draw filtered pose landmarks
-        // filteredPoseLandmarks.forEach((landmark, index) => {
-        //   const landmarkName = Object.keys(skeletonColors)[index + 11]; // Adjust index for filtered landmarks
-        //   const color = skeletonColors[landmarkName] || 'rgb(255, 255, 255)';
-        //   drawingUtils.drawLandmarks([landmark], {
-        //     radius: jointRadius,
-        //     color: color,
-        //   });
-        // });
-        const rightWristPose = poseLandmarks[16];
-        const leftWristPose = poseLandmarks[15];
-
-        const combinedAngles = [];
-
-        handResults.landmarks.forEach((handLandmarks, i) => {
-          const handWrist = handLandmarks[0];
-          const distanceToRight = Math.abs(handWrist.x - rightWristPose.x);
-          const distanceToLeft = Math.abs(handWrist.x - leftWristPose.x);
-          let poseElbow, poseWrist;
-          poseElbow = poseLandmarks[13];
-          poseWrist = poseLandmarks[15];
-
-          if (distanceToRight < distanceToLeft) {
-            // Right hand.
-            poseElbow = poseLandmarks[14];
-            poseWrist = poseLandmarks[16];
-          } else {
-            // Left hand.
-            poseElbow = poseLandmarks[13];
-            poseWrist = poseLandmarks[15];
-          }
-
-          const handIndexTip = handLandmarks[8];
-          const handPinkyTip = handLandmarks[20];
-          const angle = calculateCombinedWristAngle(
-            poseElbow,
-            poseWrist,
-            handIndexTip
-          );
-
-          const flex = angle > 0 ? angle : 0;
-          const ext = angle < 0 ? Math.abs(angle) : 0;
-          combinedAngles.push({ flex, ext, handIndex: i });
-          const wrist = poseLandmarks[16]; // adjust the index as needed
-          const middleFingertip = handLandmarks[12]; // example index for middle fingertip
-          const thumbTip = handLandmarks[4]; // example index for thumb tip
-          const wristProSup = calculateWristPronationSupination(
-            wrist,
-            thumbTip
-          );
-          const wristRadialUlnar = calculateRadialUlnar(wrist, middleFingertip);
-          const ulnarDeviation =
-            wristRadialUlnar < 0 ? Math.abs(wristRadialUlnar) : 0;
-          const radialDeviation = wristRadialUlnar > 0 ? wristRadialUlnar : 0;
-          const supination = wristProSup < 0 ? Math.abs(wristProSup) : 0;
-          const pronation = wristProSup > 0 ? wristProSup : 0;
-          setPronation(`Wrist Pronation: ${pronation}°`);
-          setSupinion(`Wrist Supination: ${supination}°`);
-          setUlnar(`Wrist Ulnar: ${ulnarDeviation}°`);
-          setRadial(`Wrist Radial: ${radialDeviation}°`);
-
-          //  setWristUlnar(`Wrist Ulnar/Radial: ${wristRadialUlnar}°`);
-
-          drawingUtils.drawConnectors(
-            handLandmarks,
-            HandLandmarker.HAND_CONNECTIONS,
-            {
-              color: 'white',
-              // color: '"#FF0000',
-              lineWidth: jointRadius,
-            }
-          );
-          handLandmarks.forEach((landmark, index) => {
-            drawingUtils.drawLandmarks([landmark], {
-              radius: jointRadius,
-              color: 'red',
-            });
-          });
-        });
-
-        // Display the combined wrist angles on the canvas.
-        combinedAngles.forEach((angleData, i) => {
-          setHandAngles(
-            `Flexion: ${angleData.flex.toFixed(
-              1
-            )}°\nExtension: ${angleData.ext.toFixed(1)}°`
-          );
-        });
-
-        calculateAngles(poseLandmarks, ctx);
+      const startTimeMs = performance.now();
+      if (videoRef.current.readyState < 2) {
+        console.error('Video not ready for processing.');
+        return;
       }
-
-      // Only draw the red frame if the user has NOT entered before
-      // if (!userInside && !hasEnteredFrame) {
-      //   ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-      //   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      //   ctx.globalCompositeOperation = 'destination-out';
-      //   ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-      //   ctx.beginPath();
-      //   ctx.roundRect(frameLeft, frameTop, frameWidth, frameHeight, 15);
-      //   ctx.fill();
-      //   ctx.globalCompositeOperation = 'source-over';
-
-      //   ctx.strokeStyle = 'red';
-      //   ctx.lineWidth = 5;
-      //   ctx.beginPath();
-      //   ctx.roundRect(frameLeft, frameTop, frameWidth, frameHeight, 15);
-      //   ctx.stroke();
-      // }
-
+      try {
+        await poseLandmarker.detectForVideo(
+          videoRef.current,
+          startTimeMs,
+          drawCallback
+        );
+      } catch (error) {
+        console.log('PoseLandmarker Error:', error);
+        return;
+      }
       if (webcamRunning) {
         animationFrameId.current = requestAnimationFrame(detectFrame);
       }
@@ -655,16 +393,31 @@ const PoseTrackerWithUpload = () => {
   };
 
   const runStream = async () => {
+    const constraints = {
+      video: {
+        deviceId: 'test',
+        width: { ideal: videoSize.width, max: videoSize.width },
+        height: { ideal: videoSize.height, max: videoSize.height },
+        frameRate: { ideal: 10, max: 15 },
+      },
+      audio: false,
+    };
+
     const video = videoRef.current;
+
     if (webcamRunning) {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (!video) {
-        return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (video) {
+          video.srcObject = stream;
+          video.addEventListener('loadeddata', predictWebcam);
+        }
+      } catch (err) {
+        console.error('Error accessing webcam:', err);
       }
-      video.srcObject = stream;
-      video.addEventListener('loadeddata', () => predictWebcam());
     } else {
-      if (!video.srcObject) return;
+      if (!video || !video.srcObject) return;
+
       const tracks = video.srcObject?.getTracks();
       tracks?.forEach((track) => track.stop());
       video.srcObject = null;
@@ -702,113 +455,90 @@ const PoseTrackerWithUpload = () => {
     }
   }, [webcamRunning]);
 
-  useEffect(() => {
-    if (visible) {
-      setTimeout(() => {
-        setVisible(false);
-      }, 3000);
-    }
-  }, [visible]);
-
-  // ✅ Custom Animated Toast
-  const showCustomToast = () => {
-    if (!toastActive) {
-      setPosition(position);
-      setVisible(true);
-    }
-  };
-
   return (
-    <div>
-      {/* Webcam Section */}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'black',
+        minHeight: '100vh',
+        color: 'white',
+        padding: '2rem',
+      }}
+    >
       <div
-        style={{ minHeight: '80vh' }}
-        className="flex flex-col justify-center items-center  bg-black text-white  p-2"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          marginBottom: '1rem',
+        }}
       >
-        <div className="w-full  flex flex-col items-center">
-          <div className="relative w-full max-w-lg  bg-gray-900 flex justify-center items-center rounded-xl overflow-hidden">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              className="absolute w-full h-full object-cover"
-            />
-            <canvas
-              ref={canvasRef}
-              width="1280"
-              height="720"
-              className="absolute w-full h-full"
-            />
-          </div>
-        </div>
-
-        {/* Image Upload Section */}
-        <div className="w-full flex  items-center">
-          <div className="p-5">
-            {/* <h1 style={{ color: 'black' }}>{lumbarRotation}</h1> */}
-            {/* <h1 style={{ color: 'black' }}>{handAngles}</h1> */}
-            {/* <h1 style={{ color: 'black' }}>{pronation}</h1>
-            <h1 style={{ color: 'black' }}>{supinion}</h1> */}
-            <h1 style={{ color: 'black' }}>{radial}</h1>
-            <h1 style={{ color: 'black' }}>{ulnar}</h1>
-          </div>
-          {/* <h2 className="text-xl font-semibold mb-3">Upload an Image</h2> */}
-          {/* <div className="relative w-full max-w-lg  bg-gray-900 flex justify-center items-center rounded-xl overflow-hidden">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="absolute opacity-0 w-full h-full cursor-pointer"
-              id="image-upload"
-            />
-            <canvas
-              ref={imageCanvasRef}
-              width="1280"
-              height="720"
-              className="absolute w-full h-full"
-            />
-            <label
-              htmlFor="image-upload"
-              className="absolute text-white bg-gray-800 px-4 py-2 rounded-lg cursor-pointer"
-              style={{ position: 'absolute', right: 0 }}
-              // className="absolute top-2 right-2 text-white bg-gray-800 px-4 py-2 rounded-lg cursor-pointer"
-            >
-              Choose Image
-            </label>
-          </div> */}
+        <div
+          style={{
+            position: 'relative',
+            width: '1280px',
+            height: '720px',
+            backgroundColor: '#1f1f1f',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <video
+            id="video"
+            autoPlay
+            playsInline
+            ref={videoRef}
+            onLoadedMetadata={() => {
+              const video = videoRef.current;
+              const canvas = canvasRef.current;
+              if (video && canvas) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+              }
+            }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              zIndex: 1,
+            }}
+          />
+          <canvas
+            ref={canvasRef}
+            width={videoSize.width}
+            height={videoSize.height}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              zIndex: 2,
+            }}
+          />
         </div>
       </div>
 
-      {/* Control Buttons */}
-      <div className="flex flex-col justify-center items-center ">
+      {/* Control Button */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
         <Button
           label="Toggle Webcam"
           icon="pi pi-video"
+          style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
           className="p-button-success"
           onClick={handleEnableWebcam}
         />
-        {/* <Button
-          label="Show Feedback"
-          icon="pi pi-info-circle"
-          className="p-button-primary"
-          onClick={() => setVisible(true)}
-        /> */}
       </div>
-
-      {/* Feedback Dialog */}
-      <Dialog
-        visible={visible}
-        position="top"
-        style={{ width: '30vw' }}
-        className="text-white"
-        onHide={() => setVisible(false)}
-        draggable={false}
-        resizable={false}
-      >
-        <div className="flex flex-col px-6 py-4 gap-4 text-center bg-green-600 bg-opacity-50 rounded-lg">
-          <p className="text-lg font-semibold">{message}</p>
-        </div>
-      </Dialog>
     </div>
   );
 };
