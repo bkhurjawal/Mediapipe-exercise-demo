@@ -1,6 +1,6 @@
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { Button } from 'primereact/button';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 const landmarksToRemove = [
   0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29,
@@ -18,16 +18,15 @@ const dance = '/video/dance.mp4';
 const pose = '/video/pose.mov';
 const PoseTrackerWithUpload = () => {
   const [poseLandmarker, setPoseLandmarker] = useState(null);
+  const [skeletonUi, setSkeletonUi] = useState(true);
 
-  const [videoSrc, setVideoSrc] = useState(pose);
+  const [videoSrc, setVideoSrc] = useState(split);
   const [videoReady, setVideoReady] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const videoSize = defaultVideoSize;
 
-  const animationFrameId = useRef(null); // Track the animation frame ID
+  const animationFrameId = useRef(null);
 
-  // ✅ Load Mediapipe Pose Detector
   useEffect(() => {
     const loadPoseLandmarker = async () => {
       const vision = await FilesetResolver.forVisionTasks(
@@ -79,210 +78,11 @@ const PoseTrackerWithUpload = () => {
     ctx.restore();
   }
 
-  function drawTaperedCapsuleLikeVertebra(
-    ctx,
-    cx,
-    cy,
-    topWidth,
-    bottomWidth,
-    height,
-    angle = 0,
-    color = '#6AC66A'
-  ) {
-    const radiusTop = topWidth / 2;
-    const radiusBottom = bottomWidth / 2;
-
-    ctx.beginPath();
-
-    // Top arc (curved downward)
-    ctx.moveTo(cx - radiusTop, cy - height / 2 + radiusTop);
-    ctx.quadraticCurveTo(
-      cx,
-      cy - height / 2 + radiusTop * 2,
-      cx + radiusTop,
-      cy - height / 2 + radiusTop
-    );
-
-    // Right side
-    ctx.lineTo(cx + radiusBottom, cy + height / 2 - radiusBottom);
-
-    // Bottom arc
-    ctx.quadraticCurveTo(
-      cx + radiusBottom,
-      cy + height / 2,
-      cx,
-      cy + height / 2
-    );
-    ctx.quadraticCurveTo(
-      cx - radiusBottom,
-      cy + height / 2,
-      cx - radiusBottom,
-      cy + height / 2 - radiusBottom
-    );
-
-    // Left side
-    ctx.lineTo(cx - radiusTop, cy - height / 2 + radiusTop);
-
-    ctx.closePath();
-
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.save();
-    ctx.beginPath();
-
-    ctx.restore();
-  }
-
-  function drawSpineLikeReferenceOld(ctx, landmarks, color = '#6AC66A') {
+  function drawSpineLikeReference(ctx, landmarks, color = '#6AC66A') {
     const ls = landmarks[11];
     const rs = landmarks[12];
     const lh = landmarks[23];
     const rh = landmarks[24];
-
-    if ([ls, rs, lh, rh].some((l) => l.visibility < 0.75)) return;
-
-    // const { width: W, height: H } = videoSize;
-    const { width: W, height: H } = ctx.canvas;
-
-    const topX = ((ls.x + rs.x) / 2) * W;
-    const topY = ((ls.y + rs.y) / 2) * H;
-    const bottomX = ((lh.x + rh.x) / 2) * W;
-    const bottomY = ((lh.y + rh.y) / 2) * H;
-
-    const dx = bottomX - topX;
-    const dy = bottomY - topY;
-    const spineAngle = Math.atan2(dy, dx);
-    const spineLength = Math.hypot(dx, dy);
-
-    const segmentCount = 6;
-    const segmentLength = spineLength / segmentCount;
-
-    const getPointAt = (i) => {
-      const frac = i / segmentCount;
-      return {
-        x: topX + dx * frac,
-        y: topY + dy * frac,
-      };
-    };
-
-    ctx.save();
-    ctx.fillStyle = color;
-
-    const capsuleWidth = 40;
-    const capsuleHeight = segmentLength * 0.3;
-
-    for (let i = 0; i < 4; i++) {
-      const center = getPointAt(i + 0.5);
-      // drawCapsule(
-      //   ctx,
-      //   center.x,
-      //   center.y,
-      //   capsuleWidth,
-      //   capsuleHeight,
-      //   spineAngle,
-      //   color
-      // );
-      drawTaperedCapsuleLikeVertebra(
-        ctx,
-        center.x,
-        center.y,
-        10,
-        20,
-        30,
-        spineAngle,
-        color
-      );
-    }
-
-    // Optional: bottom round tip
-    const bottom = getPointAt(4.5);
-    drawCapsule(
-      ctx,
-      bottom.x,
-      bottom.y,
-      capsuleWidth,
-      capsuleHeight,
-      spineAngle,
-      color
-    );
-
-    ctx.restore();
-  }
-  function drawDisc(ctx, cx, cy, width, height, angle = 0, color = '#A4D3A2') {
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(angle);
-    ctx.beginPath();
-    // ctx.rect(-width / 2, -height / 2, width, height);
-    ctx.roundRect(-width / 2, -height / 2, width, 12, 4);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function drawTaperedVertebra(
-    ctx,
-    cx,
-    cy,
-    topWidth,
-    bottomWidth,
-    height,
-    _angle = 0, // ignored now
-    color = '#6AC66A',
-    borderColor = '#FFFFFF'
-  ) {
-    const radiusTop = topWidth / 2;
-    const radiusBottom = bottomWidth / 2;
-
-    ctx.beginPath();
-
-    // Top arc (curved downward)
-    ctx.moveTo(cx - radiusTop, cy - height / 2 + radiusTop);
-    ctx.quadraticCurveTo(
-      cx,
-      cy - height / 2 + radiusTop * 2,
-      cx + radiusTop,
-      cy - height / 2 + radiusTop
-    );
-
-    // Right side
-    ctx.lineTo(cx + radiusBottom, cy + height / 2 - radiusBottom);
-
-    // Bottom arc
-    ctx.quadraticCurveTo(
-      cx + radiusBottom,
-      cy + height / 2,
-      cx,
-      cy + height / 2
-    );
-    ctx.quadraticCurveTo(
-      cx - radiusBottom,
-      cy + height / 2,
-      cx - radiusBottom,
-      cy + height / 2 - radiusBottom
-    );
-
-    // Left side
-    ctx.lineTo(cx - radiusTop, cy - height / 2 + radiusTop);
-
-    ctx.closePath();
-
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-
-  function drawSpineLikeReference(ctx, landmarks, color = '#6AC66A') {
-    const ls = landmarks[11]; // Left shoulder
-    const rs = landmarks[12]; // Right shoulder
-    const lh = landmarks[23]; // Left hip
-    const rh = landmarks[24]; // Right hip
 
     if ([ls, rs, lh, rh].some((l) => l.visibility < 0.75)) return;
 
@@ -425,57 +225,6 @@ const PoseTrackerWithUpload = () => {
     ctx.restore();
   };
 
-  function drawShoulders(ctx, landmarks, transform, color = '#3CE7A2') {
-    const right = landmarks[11];
-    const left = landmarks[12];
-
-    if (!right || !left || right.visibility < 0.75 || left.visibility < 0.75)
-      return;
-
-    const p1 = transform(right); // Point 11 (Right Shoulder)
-    const p2 = transform(left); // Point 12 (Left Shoulder)
-
-    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-    const length = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-    const widthStart = 5; // widest in middle
-    const widthEnd = 3; // taper to edges
-
-    const midX = (p1.x + p2.x) / 2;
-    const midY = (p1.y + p2.y) / 2;
-
-    const nx = Math.cos(angle + Math.PI / 2);
-    const ny = Math.sin(angle + Math.PI / 2);
-
-    const p1l = { x: p1.x + nx * widthEnd, y: p1.y + ny * widthEnd };
-    const p1r = { x: p1.x - nx * widthEnd, y: p1.y - ny * widthEnd };
-
-    const p2l = { x: p2.x + nx * widthEnd, y: p2.y + ny * widthEnd };
-    const p2r = { x: p2.x - nx * widthEnd, y: p2.y - ny * widthEnd };
-
-    const midLeft = { x: midX + nx * widthStart, y: midY + ny * widthStart };
-    const midRight = { x: midX - nx * widthStart, y: midY - ny * widthStart };
-
-    // Draw the shoulder path
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(p1l.x, p1l.y);
-    ctx.lineTo(midLeft.x, midLeft.y);
-    ctx.lineTo(p2l.x, p2l.y);
-    ctx.lineTo(p2r.x, p2r.y);
-    ctx.lineTo(midRight.x, midRight.y);
-    ctx.lineTo(p1r.x, p1r.y);
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    // Optional: Draw center joint circle
-    ctx.beginPath();
-    ctx.arc(midX, midY, 8, 0, 2 * Math.PI);
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    ctx.restore();
-  }
   function drawShoulder(ctx, landmarks, transform, color = '#3CE7A2') {
     const right = landmarks[11];
     const left = landmarks[12];
@@ -574,98 +323,109 @@ const PoseTrackerWithUpload = () => {
     ctx.restore();
   }
 
-  const drawCallbackVideoSrc = (results) => {
-    if (!results.landmarks[0] || !canvasRef.current || !videoRef.current)
-      return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const video = videoRef.current;
-    const landmarks = results.landmarks[0];
-
-    // Get canvas size
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-
-    // Get scaling based on actual rendered video area
-    const { scaleX, scaleY } = getScaleOffset();
-
-    const transform = (landmark) => ({
-      x: landmark.x * video.videoWidth * scaleX,
-      y: landmark.y * video.videoHeight * scaleY,
-    });
-
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-    // Dynamic bone thickness (based on canvas height)
-    const lineWidth = 5;
-    // 🦴 Bone connections
-
-    // const boneColor = '#3CE7A2';
-    // const boneColor = '#5345b4';
-    const boneColor = 'white';
-
-    // 🩻 Spine image
-
-    const thighBones = [
-      // { points: [23, 25], style: { top: 20, bottom: 8, color: boneColor } },
-      // { points: [24, 26], style: { top: 20, bottom: 8, color: boneColor } },
-
-      { points: [11, 13], style: { top: 20, bottom: 8, color: boneColor } }, // Left upper arm
-      { points: [13, 15], style: { top: 20, bottom: 8, color: boneColor } }, // Left lower arm
-      { points: [12, 14], style: { top: 20, bottom: 8, color: boneColor } }, // Right upper arm
-      { points: [14, 16], style: { top: 20, bottom: 8, color: boneColor } }, // Right lower arm
-
-      { points: [23, 25], style: { top: 20, bottom: 8, color: boneColor } }, // Left upper leg
-      { points: [25, 27], style: { top: 20, bottom: 8, color: boneColor } }, // Left lower leg
-      { points: [24, 26], style: { top: 20, bottom: 8, color: boneColor } }, // Right upper leg
-      { points: [26, 28], style: { top: 20, bottom: 8, color: boneColor } }, // Right lower leg
-
-      // { points: [11, 12], style: { top: 20, bottom: 8, color: boneColor } }, // Shoulders
-      // { points: [23, 24], style: { top: 20, bottom: 8, color: boneColor } }, // Hips
-
-      // { points: [0, 11], style: { thickness: lineWidth, color: boneColor } }, // Neck to L Shoulder
-      // { points: [0, 12], style: { thickness: lineWidth, color: boneColor } }, // Neck to R Shoulder
-      // { points: [11, 23], style: { top: 20, bottom: 8, color: boneColor } }, // Left torso
-      // { points: [12, 24], style: { top: 20, bottom: 8, color: boneColor } }, // Right torso
-    ];
-
-    thighBones.forEach(({ points: [startIdx, endIdx], style }) => {
-      const start = landmarks[startIdx];
-      const end = landmarks[endIdx];
-      if (
-        start.visibility < drawOptions.visibilityMin ||
-        end.visibility < drawOptions.visibilityMin
-      )
+  const drawCallbackVideoSrc = useCallback(
+    (results) => {
+      if (!results.landmarks[0] || !canvasRef.current || !videoRef.current)
         return;
 
-      const p1 = transform(start);
-      const p2 = transform(end);
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const video = videoRef.current;
+      const landmarks = results.landmarks[0];
 
-      drawStylizedBone(ctx, p1.x, p1.y, p2.x, p2.y, 20, 2, 2, boneColor);
-      drawSpineLikeReference(ctx, landmarks, boneColor);
-    });
+      // Get canvas size
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
 
-    drawShoulder(ctx, landmarks, transform, boneColor);
-    drawHip(ctx, landmarks, transform, boneColor);
+      // Get scaling based on actual rendered video area
+      const { scaleX, scaleY } = getScaleOffset();
 
-    // 🔵 Landmarks
-    landmarks.forEach((lm, idx) => {
-      // if (lm.visibility < drawOptions.visibilityMin) return;
-      if (
-        landmarksToRemove.includes(idx) ||
-        lm.visibility < drawOptions.visibilityMin
-      )
-        return;
+      const transform = (landmark) => ({
+        x: landmark.x * video.videoWidth * scaleX,
+        y: landmark.y * video.videoHeight * scaleY,
+      });
 
-      const { x, y } = transform(lm);
-      ctx.beginPath();
-      const circleRadius = 5;
-      ctx.arc(x, y, circleRadius, 0, 2 * Math.PI);
-      ctx.fillStyle = boneColor;
-      ctx.fill();
-    });
-  };
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+      // Dynamic bone thickness (based on canvas height)
+      const lineWidth = 5;
+      // 🦴 Bone connections
+
+      // const boneColor = '#3CE7A2';
+      // const boneColor = '#5345b4';
+      const boneColor = 'white';
+
+      // 🩻 Spine image
+
+      const thighBones = [
+        // { points: [23, 25], style: { top: 20, bottom: 8, color: boneColor } },
+        // { points: [24, 26], style: { top: 20, bottom: 8, color: boneColor } },
+
+        { points: [11, 13], style: { top: 20, bottom: 8, color: boneColor } }, // Left upper arm
+        { points: [13, 15], style: { top: 20, bottom: 8, color: boneColor } }, // Left lower arm
+        { points: [12, 14], style: { top: 20, bottom: 8, color: boneColor } }, // Right upper arm
+        { points: [14, 16], style: { top: 20, bottom: 8, color: boneColor } }, // Right lower arm
+
+        { points: [23, 25], style: { top: 20, bottom: 8, color: boneColor } }, // Left upper leg
+        { points: [25, 27], style: { top: 20, bottom: 8, color: boneColor } }, // Left lower leg
+        { points: [24, 26], style: { top: 20, bottom: 8, color: boneColor } }, // Right upper leg
+        { points: [26, 28], style: { top: 20, bottom: 8, color: boneColor } }, // Right lower leg
+
+        // { points: [11, 12], style: { top: 20, bottom: 8, color: boneColor } }, // Shoulders
+        // { points: [23, 24], style: { top: 20, bottom: 8, color: boneColor } }, // Hips
+
+        // { points: [0, 11], style: { thickness: lineWidth, color: boneColor } }, // Neck to L Shoulder
+        // { points: [0, 12], style: { thickness: lineWidth, color: boneColor } }, // Neck to R Shoulder
+        // { points: [11, 23], style: { top: 20, bottom: 8, color: boneColor } }, // Left torso
+        // { points: [12, 24], style: { top: 20, bottom: 8, color: boneColor } }, // Right torso
+      ];
+
+      thighBones.forEach(({ points: [startIdx, endIdx], style }) => {
+        const start = landmarks[startIdx];
+        const end = landmarks[endIdx];
+        if (
+          start.visibility < drawOptions.visibilityMin ||
+          end.visibility < drawOptions.visibilityMin
+        )
+          return;
+
+        const p1 = transform(start);
+        const p2 = transform(end);
+
+        if (skeletonUi) {
+          drawShoulder(ctx, landmarks, transform, boneColor);
+          drawHip(ctx, landmarks, transform, boneColor);
+          drawStylizedBone(ctx, p1.x, p1.y, p2.x, p2.y, 20, 2, 2, boneColor);
+          drawSpineLikeReference(ctx, landmarks, boneColor);
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = boneColor;
+          ctx.lineWidth = lineWidth;
+          ctx.stroke();
+        }
+      });
+
+      // 🔵 Landmarks
+      landmarks.forEach((lm, idx) => {
+        // if (lm.visibility < drawOptions.visibilityMin) return;
+        if (
+          landmarksToRemove.includes(idx) ||
+          lm.visibility < drawOptions.visibilityMin
+        )
+          return;
+
+        const { x, y } = transform(lm);
+        ctx.beginPath();
+        const circleRadius = 5;
+        ctx.arc(x, y, circleRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = boneColor;
+        ctx.fill();
+      });
+    },
+    [skeletonUi]
+  );
 
   const getScaleOffset = () => {
     const video = videoRef.current;
@@ -743,13 +503,13 @@ const PoseTrackerWithUpload = () => {
     const ctx = canvas?.getContext('2d');
     if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
-  useEffect(() => {
-    const videoEl = videoRef.current;
-    return () => {
-      videoEl?.removeEventListener('pause', stopPoseDetection);
-      videoEl?.removeEventListener('ended', stopPoseDetection);
-    };
-  }, [videoSrc]);
+  // useEffect(() => {
+  //   const videoEl = videoRef.current;
+  //   return () => {
+  //     videoEl?.removeEventListener('pause', stopPoseDetection);
+  //     videoEl?.removeEventListener('ended', stopPoseDetection);
+  //   };
+  // }, [videoSrc]);
 
   return (
     <div
@@ -807,12 +567,12 @@ const PoseTrackerWithUpload = () => {
                 animationFrameId.current = null;
               }
               // Clear previous detection loop
-              stopPoseDetection();
+              // stopPoseDetection();
 
               // 👇 Add listeners
-              const videoEl = videoRef.current;
-              videoEl?.addEventListener('pause', stopPoseDetection);
-              videoEl?.addEventListener('ended', stopPoseDetection);
+              // const videoEl = videoRef.current;
+              // videoEl?.addEventListener('pause', stopPoseDetection);
+              // videoEl?.addEventListener('ended', stopPoseDetection);
               // videoEl.addEventListener('play', resumePoseDetection);
               setVideoReady(true);
             }}
@@ -848,9 +608,12 @@ const PoseTrackerWithUpload = () => {
         {/* <Button label="Jump" onClick={() => switchVideo(jump)} />
         <Button label="Yoga" onClick={() => switchVideo(yog)} />
         <Button label="Split" onClick={() => switchVideo(split)} />
-        <Button label="Weight" onClick={() => switchVideo(weight)} />
-        <Button label="Dance" onClick={() => switchVideo(dance)} /> */}
-        <Button label="Pose" onClick={() => switchVideo(pose)} />
+        <Button label="Weight" onClick={() => switchVideo(weight)} />*/}
+        <Button
+          label="Skeleton Switch"
+          onClick={() => setSkeletonUi((prev) => !prev)}
+        />
+        <Button label="Split" onClick={() => switchVideo(split)} />
       </div>
     </div>
   );
