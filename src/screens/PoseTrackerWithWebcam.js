@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
+import { frontView } from '../util/postureFunctions';
 
 const drawOptions = { visibilityMin: 0.45 };
 const landmarksToRemove = [
@@ -324,6 +325,9 @@ const PoseTrackerWithWebcam = () => {
 
       const canvasWidth = (canvas.width = video.videoWidth);
       const canvasHeight = (canvas.height = video.videoHeight);
+
+      const frontViewData = frontView(landmarks, { width: canvasWidth, height: canvasHeight });
+      console.log('Front View Data:', frontViewData);
 
       const transform = (landmark) => ({
         x: landmark.x * canvas.width,
