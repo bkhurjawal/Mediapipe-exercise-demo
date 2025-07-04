@@ -5,13 +5,14 @@ import 'primereact/resources/themes/saga-green/theme.css';
 import './styles/App.css';
 
 import { PrimeReactProvider } from 'primereact/api';
-import PoseTrackerWithWebcam from './screens/PoseTrackerWithWebcam';
+import PostureAudioGuide from './screens/PostureAudioGuide';
 
 function App() {
   return (
     <div className="App">
       <PrimeReactProvider>
-        <PoseTrackerWithWebcam />
+        {/* <PoseTrackerWithWebcam /> */}
+        <PostureAudioGuide />
       </PrimeReactProvider>
     </div>
   );
